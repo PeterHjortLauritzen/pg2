@@ -311,7 +311,152 @@ contains
     integer :: i,j,k,ie,q
     real (kind=r8) :: v1,dt_local, dt_local_tracer
     real (kind=r8) :: dt_local_tracer_fvm
-    real (kind=r8) :: ftmp(np,np,nlev,qsize,nelemd) !diagnostics
+    real (kind=r8) :: ftmp(np,np,nlev,qsize,nets:nete) !diagnostics
+    real (kind=r8), allocatable :: ftmp_fvm(:,:,:,:,:) !diagnostics
+    
+    if (ntrac>0) allocate(ftmp_fvm(nc,nc,nlev,ntrac,nets:nete))
+
+    if (ftype==0) then
+      !
+      ! "Dribble" tendencies: divide total adjustment with nsplit and
+      !                       add adjustments to state after each
+      !                       vertical remap
+      !
+      dt_local            = dt_q
+      dt_local_tracer     = dt_q
+      dt_local_tracer_fvm = dt_q
+    else if (ftype==1) then
+      !
+      ! CAM-FV-stype forcing, i.e. equivalent to updating state once in the
+      ! beginning of dynamics
+      !
+      dt_local            = nsplit*dt_q
+      dt_local_tracer     = nsplit*dt_q
+      dt_local_tracer_fvm = nsplit*dt_q
+      if (nsubstep.ne.1) then
+        !
+        ! do nothing
+        !
+        dt_local            = 0.0_r8
+        dt_local_tracer     = 0.0_r8
+        dt_local_tracer_fvm = 0.0_r8
+      end if
+    else if (ftype==2) then
+      !
+      ! do state-update for tracers and "dribbling" forcing for u,v,T
+      !
+      dt_local            = dt_q
+      if (ntrac>0) then
+        dt_local_tracer     = dt_q
+        dt_local_tracer_fvm = nsplit*dt_q
+        if (nsubstep.ne.1) then
+          dt_local_tracer_fvm = 0.0_r8
+        end if
+      else
+        dt_local_tracer     = nsplit*dt_q
+        dt_local_tracer_fvm = nsplit*dt_q
+        if (nsubstep.ne.1) then
+          dt_local_tracer     = 0.0_r8
+          dt_local_tracer_fvm = 0.0_r8
+        end if
+      end if
+    end if
+
+    do ie=nets,nete
+      elem(ie)%state%T(:,:,:,np1) = elem(ie)%state%T(:,:,:,np1) + &
+           dt_local*elem(ie)%derived%FT(:,:,:)
+      elem(ie)%state%v(:,:,:,:,np1) = elem(ie)%state%v(:,:,:,:,np1) + &
+           dt_local*elem(ie)%derived%FM(:,:,:,:)
+      
+#if (defined COLUMN_OPENMP)
+    !$omp parallel do private(q,k,i,j,v1)
+#endif
+      !
+      ! tracers
+      !
+      if (qsize>0.and.dt_local_tracer>0) then
+        do q=1,qsize
+          do k=1,nlev
+            do j=1,np
+              do i=1,np
+                !
+                ! FQ holds q-tendency: (qnew-qold)/dt_physics
+                !
+                v1 = dt_local_tracer*elem(ie)%derived%FQ(i,j,k,q)
+                if (elem(ie)%state%Qdp(i,j,k,q,np1_qdp) + v1 < 0 .and. v1<0) then
+                  if (elem(ie)%state%Qdp(i,j,k,q,np1_qdp) < 0 ) then
+                    v1=0  ! Q already negative, dont make it more so
+                  else
+                    v1 = -elem(ie)%state%Qdp(i,j,k,q,np1_qdp)
+                  endif
+                endif
+                elem(ie)%state%Qdp(i,j,k,q,np1_qdp) = elem(ie)%state%Qdp(i,j,k,q,np1_qdp)+v1
+                ftmp(i,j,k,q,ie) = dt_local_tracer*&
+                     elem(ie)%derived%FQ(i,j,k,q)-v1 !Only used for diagnostics!
+              enddo
+            enddo
+          enddo
+        enddo
+      else
+        ftmp(:,:,:,:,ie) = 0.0_r8
+      end if
+      if (ntrac>0.and.dt_local_tracer_fvm>0) then
+        !
+        ! Repeat for the fvm tracers: fc holds tendency (fc_new-fc_old)/dt_physics
+        !
+        do q = 1, ntrac
+          do k = 1, nlev
+            do j = 1, nc
+              do i = 1, nc
+                v1 = dt_local_tracer_fvm*fvm(ie)%fc(i,j,k,q)/fvm(ie)%dp_fvm(i,j,k,n0_fvm)
+                if (fvm(ie)%c(i,j,k,q,n0_fvm) + v1 < 0 .and. v1<0) then
+                  if (fvm(ie)%c(i,j,k,q,n0_fvm) < 0 ) then
+                    v1 = 0  ! C already negative, dont make it more so
+                  else
+                    v1 = -fvm(ie)%c(i,j,k,q,n0_fvm)
+                  end if
+                end if
+                fvm(ie)%c(i,j,k,q,n0_fvm) = fvm(ie)%c(i,j,k,q,n0_fvm)+ v1
+                ftmp_fvm(i,j,k,q,ie) = dt_local_tracer_fvm*fvm(ie)%fc(i,j,k,q)&
+                     -v1 !Only used for diagnostics!
+              end do
+            end do
+          end do
+        end do
+      else
+        ftmp_fvm(:,:,:,:,ie) = 0.0_r8
+      end if
+    end do
+    if (ntrac>0) then
+      call output_qdp_var_dynamics(ftmp_fvm(:,:,:,:,:),nc,ntrac,nets,nete,'PDC')
+    else
+      call output_qdp_var_dynamics(ftmp(:,:,:,:,:),np,qsize,nets,nete,'PDC')
+    end if
+    call calc_tot_energy_dynamics(elem,nets,nete,np1,np1_qdp,'dBD')
+    deallocate(ftmp_fvm)
+  end subroutine applyCAMforcing
+
+
+  subroutine applyCAMforcing(elem,fvm,np1,np1_qdp,dt_q,nets,nete,nsubstep)
+    use dimensions_mod,         only: np, nc, nlev, qsize, ntrac, nelemd
+    use element_mod,            only: element_t
+    use time_mod,               only: nsplit
+    use control_mod,            only: ftype
+    use fvm_control_volume_mod, only: fvm_struct, n0_fvm
+    
+    type (element_t)     , intent(inout) :: elem(:)
+    type(fvm_struct)     , intent(inout) :: fvm(:)
+    real (kind=r8), intent(in) :: dt_q
+    integer,  intent(in) :: np1,nets,nete,np1_qdp,nsubstep
+    
+    ! local
+    integer :: i,j,k,ie,q
+    real (kind=r8) :: v1,dt_local, dt_local_tracer
+    real (kind=r8) :: dt_local_tracer_fvm
+    real (kind=r8) :: ftmp(np,np,nlev,qsize,nets:nete) !diagnostics
+    real (kind=r8), allocatable :: ftmp_fvm(:,:,:,:,:) !diagnostics
+
+    if (ntrac>0) allocate(ftmp_fvm(nc,nc,nlev,ntrac,nets:nete))
     
     if (ftype==0) then
       !
@@ -1138,7 +1283,7 @@ contains
        !
        ! =========================================================
        kptr=0
-       call edgeVpack(edge3p1, elem(ie)%state%psdry(:,:,np1),1,kptr,ie)
+       call edgeVpack(edge3p1, elem(ie)%state%psdry(:,:,np1),1,kptr,ie)!xxx not needed?
        
        kptr=1
        call edgeVpack(edge3p1, elem(ie)%state%T(:,:,:,np1),nlev,kptr,ie)
@@ -1160,7 +1305,7 @@ contains
        ! Unpack the edges for vgrad_T and v tendencies...
        ! ===========================================================
        kptr=0
-       call edgeVunpack(edge3p1, elem(ie)%state%psdry(:,:,np1), 1, kptr, ie)
+       call edgeVunpack(edge3p1, elem(ie)%state%psdry(:,:,np1), 1, kptr, ie)!xxx not needed?
        
        kptr=1
        call edgeVunpack(edge3p1, elem(ie)%state%T(:,:,:,np1), nlev, kptr, ie)
@@ -1530,31 +1675,32 @@ contains
 
   end subroutine calc_tot_energy_dynamics
 
-  subroutine output_qdp_var_dynamics(qdp,nets,nete,outfld_name)
-    use dimensions_mod, only: npsq,qsize,nlev,np,nelemd
+
+  subroutine output_qdp_var_dynamics(qdp,nx,num_trac,nets,nete,outfld_name)
+    use dimensions_mod, only: nlev,ntrac,nelemd
     use physconst     , only: gravit
     use cam_history   , only: outfld, hist_fld_active
     use constituents  , only: cnst_get_ind
     use control_mod,    only: TRACERTRANSPORT_SE_GLL, tracer_transport_type
     use dimensions_mod, only: qsize_condensate_loading,qsize_condensate_loading_idx_gll
+    use dimensions_mod, only: qsize_condensate_loading_idx
     !------------------------------Arguments--------------------------------
 
-    real(kind=r8) :: qdp(np,np,nlev,qsize,nelemd)
+    integer      ,intent(in) :: nx,num_trac,nets,nete
+    real(kind=r8) :: qdp(nx,nx,nlev,num_trac,nets:nete)
     character*(*),intent(in) :: outfld_name
-    integer      ,intent(in) :: nets,nete
 
     !---------------------------Local storage-------------------------------
 
-    real(kind=r8) :: qdp1(npsq),qdp2(npsq),qdp3(npsq),qdp4(npsq)
+    real(kind=r8) :: qdp1(nx*nx),qdp2(nx*nx),qdp3(nx*nx),qdp4(nx*nx)
     real(kind=r8) :: qdp_tmp
 
     integer :: i,j,k,ie
     integer :: ixcldice, ixcldliq, ixtt
     character(len=16) :: name_out1,name_out2,name_out3,name_out4
-
     !-----------------------------------------------------------------------
 
-    name_out1 = 'WV_'       //trim(outfld_name)
+    name_out1 = 'WV_'   //trim(outfld_name)
     name_out2 = 'WI_'   //trim(outfld_name)
     name_out3 = 'WL_'   //trim(outfld_name)
     name_out4 = 'TT_'   //trim(outfld_name)
@@ -1563,17 +1709,18 @@ contains
          hist_fld_active(name_out4)) then
 
       if (qsize_condensate_loading>1) then
-        ixcldliq = qsize_condensate_loading_idx_gll(2)
-        ixcldice = qsize_condensate_loading_idx_gll(3)
+        if (ntrac>0) then
+          ixcldliq = qsize_condensate_loading_idx(2)
+          ixcldice = qsize_condensate_loading_idx(3)
+        else
+          ixcldliq = qsize_condensate_loading_idx_gll(2)
+          ixcldice = qsize_condensate_loading_idx_gll(3)
+        end if
       else
         ixcldliq = -1
         ixcldice = -1
       end if
-      if (tracer_transport_type == TRACERTRANSPORT_SE_GLL) then
-        call cnst_get_ind('TT_LW' , ixtt    , abort=.false.)
-      else
-        ixtt = -1
-      end if
+      call cnst_get_ind('TT_LW' , ixtt    , abort=.false.)
 
       do ie=nets,nete
         qdp1 = 0.0_r8
@@ -1582,20 +1729,20 @@ contains
         qdp4 = 0.0_r8
 
         do k = 1, nlev
-          do j = 1, np
-            do i = 1, np
+          do j = 1, nx
+            do i = 1, nx
               qdp_tmp   = qdp(i,j,k,1,ie)/gravit
-              qdp1   (i+(j-1)*np) = qdp1(i+(j-1)*np) + qdp_tmp
+              qdp1   (i+(j-1)*nx) = qdp1(i+(j-1)*nx) + qdp_tmp
             end do
           end do
         end do
 
         if (ixcldice > 0) then
           do k = 1, nlev
-            do j = 1, np
-              do i = 1, np
+            do j = 1, nx
+              do i = 1, nx
                 qdp_tmp   = qdp(i,j,k,ixcldice,ie)/gravit
-                qdp2   (i+(j-1)*np) = qdp2(i+(j-1)*np) + qdp_tmp
+                qdp2   (i+(j-1)*nx) = qdp2(i+(j-1)*nx) + qdp_tmp
               end do
             end do
           end do
@@ -1603,10 +1750,10 @@ contains
 
         if (ixcldliq > 0) then
           do k = 1, nlev
-            do j = 1, np
-              do i = 1, np
+            do j = 1, nx
+              do i = 1, nx
                 qdp_tmp   = qdp(i,j,k,ixcldliq,ie)/gravit
-                qdp3   (i+(j-1)*np) = qdp3(i+(j-1)*np) + qdp_tmp
+                qdp3   (i+(j-1)*nx) = qdp3(i+(j-1)*nx) + qdp_tmp
               end do
             end do
           end do
@@ -1615,22 +1762,23 @@ contains
 
         if (ixtt > 0) then
           do k = 1, nlev
-            do j = 1, np
-              do i = 1, np
+            do j = 1, nx
+              do i = 1, nx
                 qdp_tmp   = qdp(i,j,k,ixtt,ie)/gravit
-                qdp4   (i+(j-1)*np) = qdp4(i+(j-1)*np) + qdp_tmp
+                qdp4   (i+(j-1)*nx) = qdp4(i+(j-1)*nx) + qdp_tmp
               end do
             end do
           end do
         end if
 
-        call outfld(name_out1  ,qdp1       ,npsq,ie)
-        call outfld(name_out2  ,qdp2       ,npsq,ie)
-        call outfld(name_out3  ,qdp3       ,npsq,ie)
-        call outfld(name_out4  ,qdp4       ,npsq,ie)
+        call outfld(name_out1  ,qdp1       ,nx*nx,ie)
+        call outfld(name_out2  ,qdp2       ,nx*nx,ie)
+        call outfld(name_out3  ,qdp3       ,nx*nx,ie)
+        call outfld(name_out4  ,qdp4       ,nx*nx,ie)
       end do
     end if
   end subroutine output_qdp_var_dynamics
+
 
    subroutine compute_omega(hybrid,n0,qn0,elem,deriv,nets,nete,dt,hvcoord)
      use control_mod,    only : nu_p, hypervis_subcycle
