@@ -143,7 +143,7 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
       end if
 
       if (fv_nphys > 0) then
-         call test_mapping_overwrite_dyn_state(elem,dyn_out%fvm,tl_f)
+         call test_mapping_overwrite_dyn_state(elem,dyn_out%fvm)
          !******************************************************************
          ! physics runs on an FVM grid: map GLL vars to physics grid
          !******************************************************************
