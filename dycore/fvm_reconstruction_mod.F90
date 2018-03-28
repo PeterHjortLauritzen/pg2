@@ -333,7 +333,7 @@ contains
     integer       :: itmp1,itmp2,i,j,in,vertex,n
 
 !    real (kind=r8), dimension(-1:5) :: diff_value
-    real (kind=r8), parameter :: threshold = 1.e-12_r8
+    real (kind=r8), parameter :: threshold = 0.0_r8!1.e-12_r8
     select case (irecons)
       !
       ! PLM limiter

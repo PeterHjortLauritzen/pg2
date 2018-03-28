@@ -462,7 +462,7 @@ contains
     real (kind=r8), dimension(fv_nphys,fv_nphys)          :: dp_phys_tmp,T_phys_tmp
     real (kind=r8), dimension(fv_nphys,fv_nphys,num_trac) :: q_phys_tmp
     real (kind=r8), dimension(nc,nc)                      :: inv_area_fvm,inv_darea_dp_fvm
-    real (kind=r8), dimension(nc,nc)                      :: inv_se_area_sphere_fvm,dp3d_fvm_tmp
+    real (kind=r8), dimension(nc,nc)                      :: inv_se_area_sphere_fvm
     real (kind=r8), dimension(1-nhc:nc+nhc,1-nhc:nc+nhc,1) :: T_fvm
     integer :: k,m_cnst
 
@@ -477,8 +477,10 @@ contains
       tmp = 1.0_r8
       inv_se_area_sphere_fvm = 1.0_r8/dyn2fvm(tmp,metdet)
       do k=1,nlev
-!        dp3d_fvm_tmp     = dyn2fvm(dp_gll(:,:,k),metdet)
-!        inv_darea_dp_fvm = inv_area/dp3d_fvm_tmp
+        !
+        ! first map temperature from GLL to fvm and then map fvm to phys to keep consistency
+        ! with CSLAM
+        !
         T_fvm = 0.0_r8
         T_fvm(1:nc,1:nc,1)  = dyn2fvm(T_gll(:,:,k)*dp_gll(:,:,k),metdet)*inv_darea_dp_fvm
         call fvm2phys(ie,fvm,dp_fvm(:,:,k),dp_phys_tmp,T_fvm,T_phys_tmp,1)
@@ -499,8 +501,6 @@ contains
         inv_darea_dp_phys = inv_area/dp3d_tmp
         T_phys(:,k) = RESHAPE(dyn2phys(T_gll(:,:,k)*dp_gll(:,:,k),metdet,&
              inv_darea_dp_phys),SHAPE(T_phys(:,k)))
-!        T_phys(:,k) = RESHAPE(dyn2phys(T_gll(:,:,k),metdet,&
-!             inv_area),SHAPE(T_phys(:,k)))
         Omega_phys(:,k) = RESHAPE(dyn2phys(Omega_gll(:,:,k),metdet,inv_area),SHAPE(Omega_phys(:,k)))
         !
         ! no mapping needed - just copy fields into physics structure
