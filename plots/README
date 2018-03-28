@@ -1,0 +1,13 @@
+PRECT.ne30pg3.QPC6.1year.cam-trunk-180328.pdf
+
+	CAM trunk (180328) with JAMES article defaults:
+
+	dyn_readnl: se_nsplit = 2
+	dyn_readnl: se_nu =  0.20E+15
+	dyn_readnl: se_nu_div =  0.10E+16
+	dyn_readnl: se_nu_p =  0.10E+16
+	Note that nu_q=nu_p for  mass / tracer inconsistency
+	dyn_readnl: se_nu_top =  0.25E+06
+	dyn_readnl: se_qsplit = 1
+	dyn_readnl: se_rsplit = 3
+
