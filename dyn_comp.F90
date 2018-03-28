@@ -123,7 +123,7 @@ subroutine dyn_readnl(NLFileName)
 
    ! Local variables
    integer                      :: unitn, ierr
-   real(r8)                     :: uniform_res_hypervis_scaling
+   real(r8)                     :: uniform_res_hypervis_scaling,nu_fac
 
 
    ! SE Namelist variables
@@ -274,26 +274,30 @@ subroutine dyn_readnl(NLFileName)
    ! automatically set viscosity coefficients
    !
 !   uniform_res_hypervis_scaling = 3.0_r8
-   uniform_res_hypervis_scaling = 3.22_r8
+   uniform_res_hypervis_scaling = log(10.0_r8)/log(2.0_r8) !=3.3219
+   nu_fac = 1.0E15_r8/(110000.0_r8**uniform_res_hypervis_scaling)
    if (se_nu_div < 0) then
       if (se_ne <= 0) then
          call endrun('dyn_readnl: ERROR must have se_ne > 0 for se_nu_div < 0')
       end if
-      se_nu_div = 0.751_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+      se_nu_div = nu_fac*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+!      se_nu_div = 0.751_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
 !      se_nu_div = 1.5026296018_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling      
    end if
    if (se_nu_p < 0) then
       if (se_ne <= 0) then
          call endrun('dyn_readnl: ERROR must have se_ne > 0 for se_nu_p < 0')
       end if
-      se_nu_p   = 0.751_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+!      se_nu_p   = 0.751_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+      se_nu_p   = nu_fac*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
    end if
    if (se_nu < 0) then
       if (se_ne <= 0) then
          call endrun('dyn_readnl: ERROR must have se_ne > 0 for se_nu < 0')
       end if
 !      se_nu     = 0.15_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
-      se_nu     = 0.30052592036_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+!      se_nu     = 0.30052592036_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+      se_nu     = 0.4_r8*nu_fac*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
    end if
    ! Go ahead and enforce ne = 0 for refined mesh runs
    if (se_refined_mesh) then
