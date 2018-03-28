@@ -3,6 +3,10 @@ module dp_coupling
 !-------------------------------------------------------------------------------
 ! dynamics - physics coupling module
 !-------------------------------------------------------------------------------
+#ifdef extra_pdc_diags
+   use cam_history,            only: outfld !xxx
+#endif
+
 
 use shr_kind_mod,   only: r8=>shr_kind_r8
 use ppgrid,         only: begchunk, endchunk, pcols, pver, pverp
@@ -422,7 +426,6 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
    use fvm_mapping,            only: phys2dyn_forcings_fvm
    use test_fvm_mapping,       only: test_mapping_overwrite_tendencies
    use test_fvm_mapping,       only: test_mapping_output_mapped_tendencies
-
    ! arguments
    type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
    type(physics_tend),  intent(inout), dimension(begchunk:endchunk) :: phys_tend
@@ -454,6 +457,13 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
    integer                      :: num_trac
    integer                      :: nets,nete
    integer                      :: kptr,ii
+#ifdef extra_pdc_diags
+   real (kind=r8), allocatable :: intq(:,:,:,:) !diag xxx
+   if (.not. allocated(intq)) then!xxx
+      allocate(intq(pcols,pver,pcnst,begchunk:endchunk))!xxx
+   end if!xxx
+   intq = 0.0_R8!xxx
+#endif
    !----------------------------------------------------------------------------
 
    if (iam < par%nprocs) then
@@ -549,9 +559,19 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
                   end if
                   cbuffer(cpter(icol,ilyr)+3+m) = (phys_state(lchnk)%q(icol,ilyr,m) - &
                                                    q_prev(icol,ilyr,m,lchnk))
+#ifdef extra_pdc_diags
+                  intq(icol,ilyr,m,lchnk) = (phys_state(lchnk)%q(icol,ilyr,m)-q_prev(icol,ilyr,m,lchnk))*&
+                       phys_state(lchnk)%pdeldry(icol,ilyr)
+#endif
                end do
             end do
-         end do
+          end do
+#ifdef extra_pdc_diags
+          call outfld('WV_physgrid',intq(:ncols,:nlev,1,lchnk),ncols,lchnk)
+          call outfld('WL_physgrid',intq(:ncols,:nlev,2,lchnk),ncols,lchnk)
+          call outfld('WI_physgrid',intq(:ncols,:nlev,3,lchnk),ncols,lchnk)
+          call outfld('TT_physgrid',intq(:ncols,:nlev,4,lchnk),ncols,lchnk)
+#endif
       end do
 
       call t_barrierf('sync_chk_to_blk', mpicom)
@@ -630,6 +650,18 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
          call t_startf('phys2dyn')
          call phys2dyn_forcings_fvm(elem, dyn_in%fvm, hybrid,nets,nete,ntrac==0, tl_f, tl_qdp)
          call t_stopf('phys2dyn')
+#ifdef extra_pdc_diags
+         do ie=nets,nete
+           call outfld('WV_fvm', RESHAPE(dyn_in%fvm(ie)%fc(1:nc,1:nc,:,1), &
+                (/nc*nc,nlev/)), nc*nc, ie)
+           call outfld('WL_fvm', RESHAPE(dyn_in%fvm(ie)%fc(1:nc,1:nc,:,2), &
+                (/nc*nc,nlev/)), nc*nc, ie)
+           call outfld('WI_fvm', RESHAPE(dyn_in%fvm(ie)%fc(1:nc,1:nc,:,3), &
+                (/nc*nc,nlev/)), nc*nc, ie)
+           call outfld('TT_fvm', RESHAPE(dyn_in%fvm(ie)%fc(1:nc,1:nc,:,4), &
+                (/nc*nc,nlev/)), nc*nc, ie)
+         end do
+#endif
       else
 
          call t_startf('putUniquePoints')

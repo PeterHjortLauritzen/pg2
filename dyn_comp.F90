@@ -273,13 +273,14 @@ subroutine dyn_readnl(NLFileName)
    !
    ! automatically set viscosity coefficients
    !
-   uniform_res_hypervis_scaling = 3.0_r8
+!   uniform_res_hypervis_scaling = 3.0_r8
+   uniform_res_hypervis_scaling = 3.22_r8
    if (se_nu_div < 0) then
       if (se_ne <= 0) then
          call endrun('dyn_readnl: ERROR must have se_ne > 0 for se_nu_div < 0')
       end if
-!      se_nu_div = 0.751_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
-      se_nu_div = 1.5026296018_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling      
+      se_nu_div = 0.751_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+!      se_nu_div = 1.5026296018_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling      
    end if
    if (se_nu_p < 0) then
       if (se_ne <= 0) then
@@ -730,6 +731,20 @@ subroutine dyn_init(dyn_in, dyn_out)
    end do
 
    call test_mapping_addfld
+
+#ifdef extra_pdc_diags
+   !xxx
+   !xxx this is just for debugging - remove for trunk
+   !xxx
+   call addfld ('WV_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column water vapor forcing physgrid')
+   call addfld ('WV_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column water vapor forcing fvm',gridname='FVM')
+   call addfld ('WL_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column cldliq forcing physgrid')
+   call addfld ('WL_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column cldliq forcing fvm',gridname='FVM')
+   call addfld ('WI_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column cldice forcing physgrid')
+   call addfld ('WI_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column cldice forcing fvm',gridname='FVM')
+   call addfld ('TT_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column TT forcing physgrid')
+   call addfld ('TT_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column TT forcing fvm',gridname='FVM')
+#endif
 
 end subroutine dyn_init
 

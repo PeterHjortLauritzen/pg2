@@ -481,6 +481,9 @@ contains
         ! first map temperature from GLL to fvm and then map fvm to phys to keep consistency
         ! with CSLAM
         !
+        inv_darea_dp_fvm = dyn2fvm(dp_gll(:,:,k),metdet)
+        inv_darea_dp_fvm = 1.0_r8/inv_darea_dp_fvm
+
         T_fvm = 0.0_r8
         T_fvm(1:nc,1:nc,1)  = dyn2fvm(T_gll(:,:,k)*dp_gll(:,:,k),metdet)*inv_darea_dp_fvm
         call fvm2phys(ie,fvm,dp_fvm(:,:,k),dp_phys_tmp,T_fvm,T_phys_tmp,1)
