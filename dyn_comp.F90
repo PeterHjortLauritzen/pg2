@@ -278,7 +278,8 @@ subroutine dyn_readnl(NLFileName)
       if (se_ne <= 0) then
          call endrun('dyn_readnl: ERROR must have se_ne > 0 for se_nu_div < 0')
       end if
-      se_nu_div = 0.751_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+!      se_nu_div = 0.751_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+      se_nu_div = 1.5026296018_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling      
    end if
    if (se_nu_p < 0) then
       if (se_ne <= 0) then
@@ -290,7 +291,8 @@ subroutine dyn_readnl(NLFileName)
       if (se_ne <= 0) then
          call endrun('dyn_readnl: ERROR must have se_ne > 0 for se_nu < 0')
       end if
-      se_nu     = 0.15_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+!      se_nu     = 0.15_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
+      se_nu     = 0.30052592036_r8*((30.0_r8/se_ne)*110000.0_r8)**uniform_res_hypervis_scaling
    end if
    ! Go ahead and enforce ne = 0 for refined mesh runs
    if (se_refined_mesh) then

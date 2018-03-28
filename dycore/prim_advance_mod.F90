@@ -424,7 +424,7 @@ contains
           end do
         end do
       else
-        ftmp_fvm(:,:,:,:,ie) = 0.0_r8
+        if (ntrac>0) ftmp_fvm(:,:,:,:,ie) = 0.0_r8
       end if
     end do
     if (ntrac>0) then
