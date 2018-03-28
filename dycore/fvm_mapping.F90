@@ -109,7 +109,7 @@ contains
         !
         ! pack fields that need to be interpolated
         !
-        fld_phys(1:nhc_phys,1:fv_nphys,:,1,ie)       = fvm(ie)%ft(1:fv_nphys,1:fv_nphys,:)
+        fld_phys(1:fv_nphys,1:fv_nphys,:,1,ie)       = fvm(ie)%ft(1:fv_nphys,1:fv_nphys,:)
         fld_phys(1:fv_nphys,1:fv_nphys,:,2,ie)       = fvm(ie)%fm(1:fv_nphys,1:fv_nphys,1,:)
         fld_phys(1:fv_nphys,1:fv_nphys,:,3,ie)       = fvm(ie)%fm(1:fv_nphys,1:fv_nphys,2,:)
         fld_phys(1:fv_nphys,1:fv_nphys,:,4,ie)       = fvm(ie)%dp_phys(1:fv_nphys,1:fv_nphys,:)
@@ -197,7 +197,7 @@ contains
          !
          ! pack fields that need to be interpolated
          !
-         fld_phys(1:nhc_phys,1:fv_nphys,:,1,ie)       = fvm(ie)%ft(1:fv_nphys,1:fv_nphys,:)
+         fld_phys(1:fv_nphys,1:fv_nphys,:,1,ie)       = fvm(ie)%ft(1:fv_nphys,1:fv_nphys,:)
          fld_phys(1:fv_nphys,1:fv_nphys,:,2,ie)       = fvm(ie)%fm(1:fv_nphys,1:fv_nphys,1,:)
          fld_phys(1:fv_nphys,1:fv_nphys,:,3,ie)       = fvm(ie)%fm(1:fv_nphys,1:fv_nphys,2,:)
          !
@@ -459,32 +459,49 @@ contains
 
     real (kind=r8) :: tmp(np,np)
     real (kind=r8), dimension(fv_nphys,fv_nphys)          :: inv_area,inv_darea_dp_phys,se_area_sphere,dp3d_tmp
-    real (kind=r8), dimension(fv_nphys,fv_nphys)          :: dp_phys_tmp
+    real (kind=r8), dimension(fv_nphys,fv_nphys)          :: dp_phys_tmp,T_phys_tmp
     real (kind=r8), dimension(fv_nphys,fv_nphys,num_trac) :: q_phys_tmp
-
+    real (kind=r8), dimension(nc,nc)                      :: inv_area_fvm,inv_darea_dp_fvm
+    real (kind=r8), dimension(nc,nc)                      :: inv_se_area_sphere_fvm,dp3d_fvm_tmp
+    real (kind=r8), dimension(1-nhc:nc+nhc,1-nhc:nc+nhc,1) :: T_fvm
     integer :: k,m_cnst
 
     tmp = 1.0_r8
     se_area_sphere = dyn2phys(tmp,metdet)
     inv_area = 1.0_r8/se_area_sphere
-    phis_phys(:) = RESHAPE(fvm%phis_physgrid,SHAPE(phis_phys(:)))
+    phis_phys(:) = RESHAPE(fvm%phis_physgrid,SHAPE(phis_phys(:)))!not used !!!!!!
 
     ps_phys = ptop
-    do k=1,nlev
-      dp3d_tmp       = dyn2phys(dp_gll(:,:,k),metdet,inv_area)
-      inv_darea_dp_phys = inv_area/dp3d_tmp
-      T_phys(:,k) = RESHAPE(dyn2phys(T_gll(:,:,k)*dp_gll(:,:,k),metdet,&
-           inv_darea_dp_phys),SHAPE(T_phys(:,k)))
-      Omega_phys(:,k) = RESHAPE(dyn2phys(Omega_gll(:,:,k),metdet,inv_area),SHAPE(Omega_phys(:,k)))
 
-      if (nc.ne.fv_nphys) then
+    if (nc.ne.fv_nphys) then
+      tmp = 1.0_r8
+      inv_se_area_sphere_fvm = 1.0_r8/dyn2fvm(tmp,metdet)
+      do k=1,nlev
+!        dp3d_fvm_tmp     = dyn2fvm(dp_gll(:,:,k),metdet)
+!        inv_darea_dp_fvm = inv_area/dp3d_fvm_tmp
+        T_fvm = 0.0_r8
+        T_fvm(1:nc,1:nc,1)  = dyn2fvm(T_gll(:,:,k)*dp_gll(:,:,k),metdet)*inv_darea_dp_fvm
+        call fvm2phys(ie,fvm,dp_fvm(:,:,k),dp_phys_tmp,T_fvm,T_phys_tmp,1)
+        T_phys(:,k) = RESHAPE(T_phys_tmp,SHAPE(T_phys(:,k)))
+
+        Omega_phys(:,k) = RESHAPE(dyn2phys(Omega_gll(:,:,k),metdet,inv_area),SHAPE(Omega_phys(:,k)))
+ 
         call fvm2phys(ie,fvm,dp_fvm(:,:,k),dp_phys_tmp,q_fvm(:,:,k,:),q_phys_tmp,num_trac)
         dp3d_phys(:,k) = RESHAPE(dp_phys_tmp,SHAPE(dp3d_phys(:,k)))
         ps_phys(:) = ps_phys(:)+RESHAPE(dp_phys_tmp,SHAPE(ps_phys(:)))
         do m_cnst=1,num_trac
           q_phys(:,k,m_cnst) = RESHAPE(q_phys_tmp(:,:,m_cnst),SHAPE(q_phys(:,k,m_cnst)))
         end do
-      else
+      end do
+    else
+      do k=1,nlev
+        dp3d_tmp       = dyn2phys(dp_gll(:,:,k),metdet,inv_area)
+        inv_darea_dp_phys = inv_area/dp3d_tmp
+        T_phys(:,k) = RESHAPE(dyn2phys(T_gll(:,:,k)*dp_gll(:,:,k),metdet,&
+             inv_darea_dp_phys),SHAPE(T_phys(:,k)))
+!        T_phys(:,k) = RESHAPE(dyn2phys(T_gll(:,:,k),metdet,&
+!             inv_area),SHAPE(T_phys(:,k)))
+        Omega_phys(:,k) = RESHAPE(dyn2phys(Omega_gll(:,:,k),metdet,inv_area),SHAPE(Omega_phys(:,k)))
         !
         ! no mapping needed - just copy fields into physics structure
         !
@@ -493,9 +510,11 @@ contains
         do m_cnst=1,num_trac
           q_phys(:,k,m_cnst) = RESHAPE(q_fvm(1:nc,1:nc,k,m_cnst),SHAPE(q_phys(:,k,m_cnst)))
         end do
-      end if
-    end do
+      end do
+    end if
   end subroutine dyn2phys_all_vars
+
+
 
   function dyn2phys(qdp_gll,metdet,inv_dp_darea_phys,q_gll) result(qdp_phys)
     use dimensions_mod, only: np, nc, fv_nphys
