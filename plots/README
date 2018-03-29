@@ -11,3 +11,30 @@ PRECT.ne30pg3.QPC6.1year.cam-trunk-180328.pdf
 	dyn_readnl: se_qsplit = 1
 	dyn_readnl: se_rsplit = 3
 
+Difference in atm_in between physgrid and trunk
+
+< &aquap_nl
+<  aqua_planet_sst    = 1
+< /
+16c13
+<  do_beljaars       =  .true.  
+---
+>  do_beljaars       =  .false. 
+139a137
+>  se_hypervis_order  =  2 
+160a159
+>  effgw_oro         = 0.125D0
+229c228
+<  use_gw_oro        = .false.
+---
+>  use_gw_oro        = .true.
+285c284,286
+<  do_tms       =  .false. 
+---
+>  do_tms       =  .true.  
+>  tms_orocnst       =  1.0D0   
+>  tms_z0fac         =  0.075D0 
+306c307
+<  zmconv_num_cin     =  1       
+---
+>  zmconv_num_cin     =  5   
