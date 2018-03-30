@@ -855,7 +855,7 @@ subroutine dyn_run(dyn_state)
                do j = 1, nc
                   do i = 1, nc
                      dyn_state%fvm(ie)%fc(i,j,k,m) = dyn_state%fvm(ie)%fc(i,j,k,m)* &
-                        rec2dt*dyn_state%fvm(ie)%dp_fvm(i,j,k,n0_fvm)
+                        rec2dt!*dyn_state%fvm(ie)%dp_fvm(i,j,k,n0_fvm)
                   end do
                end do
             end do

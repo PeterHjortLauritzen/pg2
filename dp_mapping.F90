@@ -622,7 +622,7 @@ contains
 
              if (jcollect_cell>0) then
                weights_all_fvm2phys(jall_fvm2phys(ie):jall_fvm2phys(ie)+jcollect_cell-1,:,ie) = &
-                    weights_cell(1:jcollect_cell,:)/fvm(ie)%area_sphere_physgrid(i,j)!da_phys(i,j) 
+                    weights_cell(1:jcollect_cell,:)!/fvm(ie)%area_sphere_physgrid(i,j)!da_phys(i,j) 
 
                weights_eul_index_all_fvm2phys(jall_fvm2phys(ie):jall_fvm2phys(ie)+jcollect_cell-1,:,ie) = &
                     weights_eul_index_cell(1:jcollect_cell,:)
@@ -651,7 +651,7 @@ contains
 
              if (jcollect_cell>0) then
                weights_all_phys2fvm(jall_phys2fvm(ie):jall_phys2fvm(ie)+jcollect_cell-1,:,ie) &
-                    = weights_cell(1:jcollect_cell,:)/fvm(ie)%area_sphere(i,j)!da_fvm(i,j)
+                    = weights_cell(1:jcollect_cell,:)!/fvm(ie)%area_sphere(i,j)!da_fvm(i,j)
 
                weights_eul_index_all_phys2fvm(jall_phys2fvm(ie):jall_phys2fvm(ie)+jcollect_cell-1,:,ie) = &
                     weights_eul_index_cell(1:jcollect_cell,:)

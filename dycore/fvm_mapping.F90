@@ -1,3 +1,4 @@
+#define PCoM
 module fvm_mapping
   use shr_kind_mod,           only: r8=>shr_kind_r8
   use dimensions_mod,         only: irecons_tracer
@@ -138,15 +139,15 @@ contains
            !
            ! note that phys2fvm assumes that halo has already been filled
            !
-           call phys2fvm(ie,fvm(ie),fld_phys(:,:,k,4,ie),dp_fvm_tmp(:,:),&
+           call phys2fvm(ie,k,fvm(ie),fld_phys(:,:,k,4,ie),dp_fvm_tmp(:,:),&
                 fld_phys(:,:,k,5:4+ntrac,ie),fvm(ie)%fc(:,:,k,1:ntrac),ntrac,.false.)
            !
            ! convert to mixing ratio tendency (%fc holds tracer mass change)
            !
-           dp_fvm_tmp(:,:) = 1.0_r8/fvm(ie)%dp_fvm(1:nc,1:nc,k,n0_fvm)
-           do m_cnst=1,ntrac
-             fvm(ie)%fc(:,:,k,m_cnst) = fvm(ie)%fc(:,:,k,m_cnst)*dp_fvm_tmp(:,:)
-           end do
+!           dp_fvm_tmp(:,:) = 1.0_r8/fvm(ie)%dp_fvm(1:nc,1:nc,k,n0_fvm)
+!           do m_cnst=1,ntrac
+!             fvm(ie)%fc(:,:,k,m_cnst) = fvm(ie)%fc(:,:,k,m_cnst)*dp_fvm_tmp(:,:)
+!           end do
          end do
        end do
        !
@@ -161,7 +162,7 @@ contains
          !
          do m_cnst=1,qsize_condensate_loading
            fld_fvm(1:nc,1:nc,:,m_cnst,ie) = fvm(ie)%c(1:nc,1:nc,:,qsize_condensate_loading_idx(m_cnst),n0_fvm)+&
-                fvm(ie)%fc(1:nc,1:nc,:,qsize_condensate_loading_idx(m_cnst))
+                fvm(ie)%fc(1:nc,1:nc,:,qsize_condensate_loading_idx(m_cnst))/fvm(ie)%dp_fvm(1:nc,1:nc,:,n0_fvm)
          enddo
          fld_fvm(1:nc,1:nc,:,nflds,ie) = fvm(ie)%c(1:nc,1:nc,:,qsize_condensate_loading_idx(1),n0_fvm)
        end do
@@ -982,6 +983,22 @@ contains
     integer                              :: jx_min_local(3), jx_max_local(3), jy_min_local(3), jy_max_local(3)
     real (kind=r8)                       :: dp_phys_inv(fv_nphys,fv_nphys),dp_tmp
 
+#ifdef PCoM
+    q_phys = 0.0_r8
+    dp_phys = 0.0_r8
+    do h=1,jall_fvm2phys(ie)
+      jx  = weights_lgr_index_all_fvm2phys(h,1,ie)
+      jy  = weights_lgr_index_all_fvm2phys(h,2,ie)
+      jdx = weights_eul_index_all_fvm2phys(h,1,ie)
+      jdy = weights_eul_index_all_fvm2phys(h,2,ie)
+      dp_phys(jx,jy) = dp_phys(jx,jy) + weights_all_fvm2phys(h,1,ie)*dp_fvm(jdx,jdy,1)
+      do m_cnst=1,num_trac
+        q_phys(jx,jy,m_cnst) = q_phys(jx,jy,m_cnst) + &
+             weights_all_fvm2phys(h,1,ie)*q_fvm(jdx,jdy,m_cnst)*dp_fvm(jdx,jdy,1)
+      end do
+    end do
+#else
+
     llimiter=.false.
     nht_local=nhe_local+nhr     !total halo width where reconstruction is needed (nht<=nc) - phl
     !
@@ -1045,6 +1062,7 @@ contains
               q_fvm(jdx,jdy,m_cnst) *dp_tmp
        end do
     end do
+#endif
     !
     ! convert to mixing ratio
     !
@@ -1052,10 +1070,11 @@ contains
     do m_cnst=1,num_trac
       q_phys(:,:,m_cnst) = q_phys(:,:,m_cnst)*dp_phys_inv(:,:)
     end do
+    dp_phys = dp_phys/fvm%area_sphere_physgrid
   end subroutine fvm2phys
 
 
-  subroutine phys2fvm(ie,fvm,dp_phys,dp_fvm,q_phys,dp_q_fvm,num_trac,return_mixing_ratio)
+  subroutine phys2fvm(ie,k,fvm,dp_phys,dp_fvm,q_phys,dp_q_fvm,num_trac,return_mixing_ratio)
     use dimensions_mod, only: fv_nphys,nhr_phys,nhc_phys,ns_phys,fv_nphys,nhe_phys,nc
     use fvm_reconstruction_mod, only: reconstruction
     !
@@ -1064,8 +1083,12 @@ contains
     use dp_mapping, only: weights_all_phys2fvm, weights_eul_index_all_phys2fvm
     use dp_mapping, only: weights_lgr_index_all_phys2fvm, jall_phys2fvm
 
+    use dp_mapping, only: weights_all_fvm2phys, weights_eul_index_all_fvm2phys
+    use dp_mapping, only: weights_lgr_index_all_fvm2phys, jall_fvm2phys
+    use fvm_control_volume_mod, only: n0_fvm
+
+    integer              , intent(in)           :: ie,k
     type(fvm_struct)     , intent(in)           :: fvm
-    integer              , intent(in)           :: ie
     integer              , intent(in)           :: num_trac
     logical              , intent(in)           :: return_mixing_ratio
     real (kind=r8), intent(inout)        :: dp_phys(1-nhc_phys:fv_nphys+nhc_phys,1-nhc_phys:fv_nphys+nhc_phys,1)
@@ -1089,6 +1112,92 @@ contains
     !
     integer:: nh_phys
     integer:: nht_local
+#ifdef PCoM
+    real(kind=r8) :: fvm_mass_in_physics_cell(fv_nphys,fv_nphys)
+    real(kind=r8) :: fvm_dp_mass_in_physics_cell(fv_nphys,fv_nphys)
+    real(kind=r8) :: area(nc,nc)
+
+    area= 0.0_r8
+    do h=1,jall_phys2fvm(ie)
+      jx  = weights_lgr_index_all_phys2fvm(h,1,ie); jy  = weights_lgr_index_all_phys2fvm(h,2,ie)
+      jdx = weights_eul_index_all_phys2fvm(h,1,ie); jdy = weights_eul_index_all_phys2fvm(h,2,ie)
+      
+      area(jx,jy) = area(jx,jy) +weights_all_phys2fvm(h,1,ie)
+    end do
+             
+    !
+    ! this algorithm will only work if fvm2phys is PCoM
+    !
+    dp_q_fvm = 0.0_r8    
+    do m_cnst=1,num_trac
+      fvm_mass_in_physics_cell = 0.0_r8   
+      fvm_dp_mass_in_physics_cell = 0.0_r8   
+!      fvm%c(:,:,:,:,n0_fvm) = abs(fvm%c(:,:,:,:,n0_fvm))
+      do h=1,jall_fvm2phys(ie)
+        jx  = weights_lgr_index_all_fvm2phys(h,1,ie); jy  = weights_lgr_index_all_fvm2phys(h,2,ie)
+        jdx = weights_eul_index_all_fvm2phys(h,1,ie); jdy = weights_eul_index_all_fvm2phys(h,2,ie)
+        fvm_mass_in_physics_cell(jx,jy) = fvm_mass_in_physics_cell(jx,jy) +&
+             weights_all_fvm2phys(h,1,ie)*fvm%c(jdx,jdy,k,m_cnst,n0_fvm)*&
+             fvm%dp_fvm(jdx,jdy,k,n0_fvm)
+        fvm_dp_mass_in_physics_cell(jx,jy) = fvm_dp_mass_in_physics_cell(jx,jy) +&
+             weights_all_fvm2phys(h,1,ie)*&
+             fvm%dp_fvm(jdx,jdy,k,n0_fvm)
+      end do
+      do h=1,jall_phys2fvm(ie)
+        jx  = weights_lgr_index_all_phys2fvm(h,1,ie); jy  = weights_lgr_index_all_phys2fvm(h,2,ie)
+        jdx = weights_eul_index_all_phys2fvm(h,1,ie); jdy = weights_eul_index_all_phys2fvm(h,2,ie)
+
+        if (fvm_mass_in_physics_cell(jdx,jdy)>0.0_r8) then
+          dp_q_fvm(jx,jy,m_cnst) = dp_q_fvm(jx,jy,m_cnst) + &
+               dp_phys(jdx,jdy,1)*q_phys(jdx,jdy,m_cnst)*fvm%area_sphere_physgrid(jdx,jdy)*&  !total mass change from physics on physics grid
+          ! !qqq weights_all_phys2fvm(h,1,ie)*&
+               !
+               ! fraction
+               !
+               weights_all_phys2fvm(h,1,ie)*fvm%c(jx,jy,k,m_cnst,n0_fvm)*&
+               fvm%dp_fvm(jx,jy,k,n0_fvm)/fvm_mass_in_physics_cell(jdx,jdy)
+        else
+!          dp_q_fvm(jx,jy,m_cnst) = dp_q_fvm(jx,jy,m_cnst) + &
+!               dp_phys(jdx,jdy,1)*weights_all_phys2fvm(h,1,ie)*q_phys(jdx,jdy,m_cnst)
+          dp_q_fvm(jx,jy,m_cnst) = dp_q_fvm(jx,jy,m_cnst) + &
+               dp_phys(jdx,jdy,1)*q_phys(jdx,jdy,m_cnst)*fvm%area_sphere_physgrid(jdx,jdy)*&  !total mass change from physics on physics grid
+          ! !qqq weights_all_phys2fvm(h,1,ie)*&
+               !
+               ! fraction
+               !
+               weights_all_phys2fvm(h,1,ie)*&
+               fvm%dp_fvm(jx,jy,k,n0_fvm)/fvm_dp_mass_in_physics_cell(jdx,jdy)
+        end if
+
+
+!              dp_phys(jdx,jdy,1)*weights_all_phys2fvm(h,1,ie)*
+      end do
+    end do
+    !
+    ! using fvm%area_sphere(:,:) instead of area(:,:) leads to O(1E-12) undershoots
+    !
+    dp_fvm_inv=1.0_r8/area(:,:)!fvm%area_sphere(:,:)
+    do m_cnst=1,num_trac
+      dp_q_fvm(:,:,m_cnst) = dp_q_fvm(:,:,m_cnst)*dp_fvm_inv(:,:)
+    end do
+
+
+    do jy=1,nc
+      do jx=1,nc
+!        write(*,*) "xxx",area(jx,jy)-fvm%area_sphere(jx,jy),area(jx,jy)
+      end do
+    end do
+    !
+    ! convert to mixing ratio
+    !
+    if (return_mixing_ratio) then
+      dp_fvm_inv=1.0_r8/dp_fvm
+      do m_cnst=1,num_trac
+        dp_q_fvm(:,:,m_cnst) = dp_q_fvm(:,:,m_cnst)*dp_fvm_inv(:,:)
+      end do
+    end if
+
+#else
 
     nh_phys = nhr_phys!-1!+(nhe-1) ! = 2 (nhr=2; nhe_phys=1),! = 3 (nhr=2; nhe_phys=2)
     nht_local=nhe_phys+nhr_phys     !total halo width where reconstruction is needed (nht<=nc) - phl
@@ -1160,6 +1269,7 @@ contains
               q_phys(jdx,jdy,m_cnst) *dp_tmp
        end do
     end do
+
     !
     ! convert to mixing ratio
     !
@@ -1169,6 +1279,7 @@ contains
         dp_q_fvm(:,:,m_cnst) = dp_q_fvm(:,:,m_cnst)*dp_fvm_inv(:,:)
       end do
     end if
+#endif
   end subroutine phys2fvm
 
 end module fvm_mapping
