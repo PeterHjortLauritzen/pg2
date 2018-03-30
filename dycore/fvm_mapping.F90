@@ -229,8 +229,10 @@ contains
            elem(ie)%derived%fq(:,:,:,m_cnst) = fld_gll(:,:,:,m_cnst+3,ie)-&
                 qgll(:,:,:,m_cnst,ie)
          end do
-         fvm(ie)%fc(1:nc,1:nc,:,1:ntrac) = fvm(ie)%fc_phys(1:nc,1:nc,:,1:ntrac)*&
+         do m_cnst = 1,ntrac
+           fvm(ie)%fc(1:nc,1:nc,:,m_cnst) = fvm(ie)%fc_phys(1:nc,1:nc,:,m_cnst)*&
                 fvm(ie)%dp_fvm(1:nc,1:nc,:,n0_fvm)
+         end do
        end do
      end if
      deallocate(fld_phys,llimiter,fld_gll)
@@ -1118,7 +1120,7 @@ contains
     real(kind=r8) :: fvm_dp_mass_in_physics_cell(fv_nphys,fv_nphys)
     real(kind=r8) :: area(nc,nc)
 
-    area= 0.0_r8
+    area      = 0.0_r8
     do h=1,jall_phys2fvm(ie)
       jx  = weights_lgr_index_all_phys2fvm(h,1,ie); jy  = weights_lgr_index_all_phys2fvm(h,2,ie)
       jdx = weights_eul_index_all_phys2fvm(h,1,ie); jdy = weights_eul_index_all_phys2fvm(h,2,ie)
@@ -1131,7 +1133,7 @@ contains
     !
     dp_q_fvm = 0.0_r8    
     do m_cnst=1,num_trac
-      fvm_mass_in_physics_cell = 0.0_r8   
+      fvm_mass_in_physics_cell    = 0.0_r8   
       fvm_dp_mass_in_physics_cell = 0.0_r8   
 !      fvm%c(:,:,:,:,n0_fvm) = abs(fvm%c(:,:,:,:,n0_fvm))
       do h=1,jall_fvm2phys(ie)
@@ -1151,27 +1153,20 @@ contains
         if (fvm_mass_in_physics_cell(jdx,jdy)>0.0_r8) then
           dp_q_fvm(jx,jy,m_cnst) = dp_q_fvm(jx,jy,m_cnst) + &
                dp_phys(jdx,jdy,1)*q_phys(jdx,jdy,m_cnst)*fvm%area_sphere_physgrid(jdx,jdy)*&  !total mass change from physics on physics grid
-          ! !qqq weights_all_phys2fvm(h,1,ie)*&
                !
                ! fraction
                !
                weights_all_phys2fvm(h,1,ie)*fvm%c(jx,jy,k,m_cnst,n0_fvm)*&
                fvm%dp_fvm(jx,jy,k,n0_fvm)/fvm_mass_in_physics_cell(jdx,jdy)
         else
-!          dp_q_fvm(jx,jy,m_cnst) = dp_q_fvm(jx,jy,m_cnst) + &
-!               dp_phys(jdx,jdy,1)*weights_all_phys2fvm(h,1,ie)*q_phys(jdx,jdy,m_cnst)
           dp_q_fvm(jx,jy,m_cnst) = dp_q_fvm(jx,jy,m_cnst) + &
                dp_phys(jdx,jdy,1)*q_phys(jdx,jdy,m_cnst)*fvm%area_sphere_physgrid(jdx,jdy)*&  !total mass change from physics on physics grid
-          ! !qqq weights_all_phys2fvm(h,1,ie)*&
                !
                ! fraction
                !
                weights_all_phys2fvm(h,1,ie)*&
                fvm%dp_fvm(jx,jy,k,n0_fvm)/fvm_dp_mass_in_physics_cell(jdx,jdy)
         end if
-
-
-!              dp_phys(jdx,jdy,1)*weights_all_phys2fvm(h,1,ie)*
       end do
     end do
     !
@@ -1197,8 +1192,11 @@ contains
         dp_q_fvm(:,:,m_cnst) = dp_q_fvm(:,:,m_cnst)*dp_fvm_inv(:,:)
       end do
     end if
-
-#else
+    return
+#endif
+#ifdef PPM
+    call fvm2phys(ie,fvm,fvm%dp_fvm(:,:,k,n0_fvm),dp_phys,fvm%c(:,:,k,n0_fvm),q_phys,num_trac)
+#endif
 
     nh_phys = nhr_phys!-1!+(nhe-1) ! = 2 (nhr=2; nhe_phys=1),! = 3 (nhr=2; nhe_phys=2)
     nht_local=nhe_phys+nhr_phys     !total halo width where reconstruction is needed (nht<=nc) - phl
@@ -1280,7 +1278,6 @@ contains
         dp_q_fvm(:,:,m_cnst) = dp_q_fvm(:,:,m_cnst)*dp_fvm_inv(:,:)
       end do
     end if
-#endif
   end subroutine phys2fvm
 
 end module fvm_mapping
