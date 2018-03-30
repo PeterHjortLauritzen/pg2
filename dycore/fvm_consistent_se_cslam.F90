@@ -40,7 +40,7 @@ contains
     use edge_mod              , only: ghostpack, ghostunpack
     use bndry_mod             , only: ghost_exchange
     use hybvcoord_mod         , only: hvcoord_t
-
+    use constituents          , only: qmin
     implicit none
     type (element_t)      , intent(inout) :: elem(:)
     type (fvm_struct)     , intent(inout) :: fvm(:)
@@ -170,6 +170,8 @@ contains
              do i=1,nc
                ! convert to mixing ratio
                fvm(ie)%c(i,j,k,itr,np1_fvm) = fvm(ie)%c(i,j,k,itr,np1_fvm)*inv_dp_area(i,j)
+               ! remove round-off undershoots
+               fvm(ie)%c(i,j,k,itr,np1_fvm) = MAX(fvm(ie)%c(i,j,k,itr,np1_fvm),qmin(itr))
              end do
            end do
          end do
@@ -197,7 +199,6 @@ contains
      ntmp     = np1_fvm
      np1_fvm  = n0_fvm
      n0_fvm   = ntmp
-
   end subroutine run_consistent_se_cslam
 
   subroutine swept_flux(elem,fvm,ilev,ctracer)
