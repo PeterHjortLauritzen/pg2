@@ -229,7 +229,8 @@ contains
            elem(ie)%derived%fq(:,:,:,m_cnst) = fld_gll(:,:,:,m_cnst+3,ie)-&
                 qgll(:,:,:,m_cnst,ie)
          end do
-         fvm(ie)%fc(1:nc,1:nc,:,1:ntrac) = fvm(ie)%fc_phys(1:nc,1:nc,:,1:ntrac)
+         fvm(ie)%fc(1:nc,1:nc,:,1:ntrac) = fvm(ie)%fc_phys(1:nc,1:nc,:,1:ntrac)*&
+                fvm(ie)%dp_fvm(1:nc,1:nc,:,n0_fvm)
        end do
      end if
      deallocate(fld_phys,llimiter,fld_gll)
