@@ -1376,13 +1376,10 @@ contains
 
     if ( hist_fld_active(name_out1).or.hist_fld_active(name_out2).or.hist_fld_active(name_out3).or.&
          hist_fld_active(name_out4).or.hist_fld_active(name_out5).or.hist_fld_active(name_out6)) then
-      if (qsize_condensate_loading>1) then
-        ixcldliq = qsize_condensate_loading_idx_gll(2)
-        ixcldice = qsize_condensate_loading_idx_gll(3)
-      else
-        ixcldliq = -1
-        ixcldice = -1
-      end if
+
+      ixcldliq = qsize_condensate_loading_idx_gll(2)
+      ixcldice = qsize_condensate_loading_idx_gll(3)
+
       if (tracer_transport_type == TRACERTRANSPORT_SE_GLL) then
         call cnst_get_ind('TT_LW' , ixtt    , abort=.false.)
       else

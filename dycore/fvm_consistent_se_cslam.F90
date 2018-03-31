@@ -179,7 +179,7 @@ contains
          ! convert to dp and scale back dp
          !
          ! overwrite dp_fvm here to preserve mixing ratio (not mass) to round-off level
-         fvm(ie)%dp_fvm(1:nc,1:nc,k,np1_fvm) = dp_se(1:nc,1:nc)
+!         fvm(ie)%dp_fvm(1:nc,1:nc,k,np1_fvm) = dp_se(1:nc,1:nc)
          fvm(ie)%dp_fvm(1:nc,1:nc,k,np1_fvm) = fvm(ie)%dp_fvm(1:nc,1:nc,k,np1_fvm)*fvm(ie)%dp_ref(k)*fvm(ie)%inv_area_sphere
        end do
        !

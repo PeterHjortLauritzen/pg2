@@ -320,7 +320,7 @@ subroutine dyn_readnl(NLFileName)
    topology                 = "cube"
    ! Finally, set the HOMME variables which have different names
    qsize_condensate_loading = se_qsize_condensate_loading
-   lcp_moist                = .true.
+   lcp_moist                = .false.!xxx
    fine_ne                  = se_fine_ne
    ftype                    = se_ftype
    statediag_numtrac        = MIN(se_statediag_numtrac,pcnst)
@@ -562,18 +562,18 @@ subroutine dyn_init(dyn_in, dyn_out)
 
    integer :: istage, ivars
    character (len=108) :: str1, str2, str3
-
+   integer, parameter :: qcondensate_max = 6
    character(len=*), parameter :: subname = 'dyn_init'
    !----------------------------------------------------------------------------
 
-   if (qsize_condensate_loading > 6) then
+   if (qsize_condensate_loading > qcondensate_max) then
      call endrun(subname//': se_qsize_condensate_loading not setup for more than 6 forms of water')
    end if
 
    ! Now allocate and set condenstate vars
-   allocate(qsize_condensate_loading_idx(qsize_condensate_loading))
-   allocate(qsize_condensate_loading_idx_gll(qsize_condensate_loading))
-   allocate(qsize_condensate_loading_cp(qsize_condensate_loading))
+   allocate(qsize_condensate_loading_idx(qcondensate_max))
+   allocate(qsize_condensate_loading_idx_gll(qcondensate_max))
+   allocate(qsize_condensate_loading_cp(qcondensate_max))
 
    allocate(cnst_name_gll(qsize))     ! constituent names for gll tracers
    allocate(cnst_longname_gll(qsize)) ! long name of constituents for gll tracers
@@ -581,41 +581,36 @@ subroutine dyn_init(dyn_in, dyn_out)
    ! water vapor is always tracer 1
    qsize_condensate_loading_idx(1) = 1
    qsize_condensate_loading_cp(1) = cpwv
-   if (qsize_condensate_loading > 1) then
-     call cnst_get_ind('CLDLIQ', ixcldliq, abort=.false.)
-     if (ixcldliq < 1) &
-          call endrun(subname//': ERROR: qsize_condensate_loading >1 but CLDLIQ not available')
-     qsize_condensate_loading_idx(2) = ixcldliq
-     qsize_condensate_loading_cp(2)  = cpliq
-   end if
-   if (qsize_condensate_loading > 2) then
-     call cnst_get_ind('CLDICE', ixcldice, abort=.false.)
-     if (ixcldice < 1) &
-          call endrun(subname//': ERROR: qsize_condensate_loading >2 but CLDICE not available')
-     qsize_condensate_loading_idx(3) = ixcldice
-     qsize_condensate_loading_cp(3)  = cpice
-   end if
-   if (qsize_condensate_loading > 3) then
-     call cnst_get_ind('RAINQM', ixrain, abort=.false.)
-     if (ixrain < 1) &
-          call endrun(subname//': ERROR: qsize_condensate_loading >3 but RAINQM not available')
-     qsize_condensate_loading_idx(4) = ixrain
-     qsize_condensate_loading_cp(4)  = cpliq
-   end if
-   if (qsize_condensate_loading > 4) then
-     call cnst_get_ind('SNOWQM', ixsnow, abort=.false.)
-     if (ixsnow < 1) &
-          call endrun(subname//': ERROR: qsize_condensate_loading >4 but SNOWQM not available')
-     qsize_condensate_loading_idx(5) = ixsnow
-     qsize_condensate_loading_cp(5)  = cpice
-   end if
-   if (qsize_condensate_loading > 5) then
-     call cnst_get_ind('GRAUQM', ixgraupel, abort=.false.)
-     if (ixgraupel < 1) &
-          call endrun(subname//': ERROR: qsize_condensate_loading >5 but GRAUQM not available')
-     qsize_condensate_loading_idx(6) = ixgraupel
-     qsize_condensate_loading_cp(6)  = cpice
-   end if
+
+   call cnst_get_ind('CLDLIQ', ixcldliq, abort=.false.)
+   if (ixcldliq < 1.and.qsize_condensate_loading > 1) &
+        call endrun(subname//': ERROR: qsize_condensate_loading >1 but CLDLIQ not available')
+   qsize_condensate_loading_idx(2) = ixcldliq
+   qsize_condensate_loading_cp(2)  = cpliq
+
+   call cnst_get_ind('CLDICE', ixcldice, abort=.false.)
+   if (ixcldice < 1.and.qsize_condensate_loading > 2) &
+        call endrun(subname//': ERROR: qsize_condensate_loading >2 but CLDICE not available')
+   qsize_condensate_loading_idx(3) = ixcldice
+   qsize_condensate_loading_cp(3)  = cpice
+
+   call cnst_get_ind('RAINQM', ixrain, abort=.false.)
+   if (ixrain < 1.and.qsize_condensate_loading > 3) &
+        call endrun(subname//': ERROR: qsize_condensate_loading >3 but RAINQM not available')
+   qsize_condensate_loading_idx(4) = ixrain
+   qsize_condensate_loading_cp(4)  = cpliq
+
+   call cnst_get_ind('SNOWQM', ixsnow, abort=.false.)
+   if (ixsnow < 1.and.qsize_condensate_loading > 4) &
+        call endrun(subname//': ERROR: qsize_condensate_loading >4 but SNOWQM not available')
+   qsize_condensate_loading_idx(5) = ixsnow
+   qsize_condensate_loading_cp(5)  = cpice
+
+   call cnst_get_ind('GRAUQM', ixgraupel, abort=.false.)
+   if (ixgraupel < 1.and.qsize_condensate_loading > 5) &
+        call endrun(subname//': ERROR: qsize_condensate_loading >5 but GRAUQM not available')
+   qsize_condensate_loading_idx(6) = ixgraupel
+   qsize_condensate_loading_cp(6)  = cpice
    !
    ! if adding more condensate loading tracers remember to increase qsize_d in dimensions_mod
    !
@@ -644,7 +639,7 @@ subroutine dyn_init(dyn_in, dyn_out)
        ! if not running with CSLAM then the condensate-loading water tracers are not necessarily
        ! indexed contiguously (are indexed as in physics)
        !
-       if (m.le.qsize_condensate_loading) qsize_condensate_loading_idx_gll(m) = qsize_condensate_loading_idx(m)
+       if (m.le.qcondensate_max) qsize_condensate_loading_idx_gll(m) = qsize_condensate_loading_idx(m)
        cnst_name_gll    (m)                = cnst_name    (m)
        cnst_longname_gll(m)                = cnst_longname(m)
      end if
@@ -745,14 +740,16 @@ subroutine dyn_init(dyn_in, dyn_out)
    !xxx
    !xxx this is just for debugging - remove for trunk
    !xxx
-   call addfld ('WV_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column water vapor forcing physgrid')
-   call addfld ('WV_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column water vapor forcing fvm',gridname='FVM')
-   call addfld ('WL_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column cldliq forcing physgrid')
-   call addfld ('WL_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column cldliq forcing fvm',gridname='FVM')
-   call addfld ('WI_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column cldice forcing physgrid')
-   call addfld ('WI_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column cldice forcing fvm',gridname='FVM')
-   call addfld ('TT_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column TT forcing physgrid')
-   call addfld ('TT_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column TT forcing fvm',gridname='FVM')
+   if (ntrac>0) then
+     call addfld ('WV_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column water vapor forcing physgrid')
+     call addfld ('WV_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column water vapor forcing fvm',gridname='FVM')
+     call addfld ('WL_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column cldliq forcing physgrid')
+     call addfld ('WL_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column cldliq forcing fvm',gridname='FVM')
+     call addfld ('WI_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column cldice forcing physgrid')
+     call addfld ('WI_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column cldice forcing fvm',gridname='FVM')
+     call addfld ('TT_physgrid',   (/ 'lev' /), 'A', 'kg/m2','Total column TT forcing physgrid')
+     call addfld ('TT_fvm',   (/ 'lev' /), 'A', 'kg/m2','Total column TT forcing fvm',gridname='FVM')
+   end if
 #endif
 
 end subroutine dyn_init

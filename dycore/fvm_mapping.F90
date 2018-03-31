@@ -1151,12 +1151,13 @@ contains
         jdx = weights_eul_index_all_phys2fvm(h,1,ie); jdy = weights_eul_index_all_phys2fvm(h,2,ie)
 
         if (fvm_mass_in_physics_cell(jdx,jdy)>0.0_r8) then
+!        if (fvm_mass_in_physics_cell(jdx,jdy)>1.0E-12_r8) then
           dp_q_fvm(jx,jy,m_cnst) = dp_q_fvm(jx,jy,m_cnst) + &
                dp_phys(jdx,jdy,1)*q_phys(jdx,jdy,m_cnst)*fvm%area_sphere_physgrid(jdx,jdy)*&  !total mass change from physics on physics grid
                !
                ! fraction
                !
-               weights_all_phys2fvm(h,1,ie)*fvm%c(jx,jy,k,m_cnst,n0_fvm)*&
+               weights_all_phys2fvm(h,1,ie)*(fvm%c(jx,jy,k,m_cnst,n0_fvm))*&
                fvm%dp_fvm(jx,jy,k,n0_fvm)/fvm_mass_in_physics_cell(jdx,jdy)
         else
           dp_q_fvm(jx,jy,m_cnst) = dp_q_fvm(jx,jy,m_cnst) + &
