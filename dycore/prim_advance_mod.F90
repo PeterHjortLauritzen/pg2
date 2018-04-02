@@ -433,6 +433,7 @@ contains
       call output_qdp_var_dynamics(ftmp(:,:,:,:,:),np,qsize,nets,nete,'PDC')
     end if
     call calc_tot_energy_dynamics(elem,nets,nete,np1,np1_qdp,'dBD')
+    if (ftype==1.and.nsubstep==1) call calc_tot_energy_dynamics(elem,nets,nete,np1,np1_qdp,'p2d')
     if (ntrac>0) deallocate(ftmp_fvm)
   end subroutine applyCAMforcing
 

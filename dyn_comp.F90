@@ -533,8 +533,8 @@ subroutine dyn_init(dyn_in, dyn_out)
    integer :: m_cnst, m
 
    ! variables for initializing energy and axial angular momentum diagnostics
-   character (len = 3), dimension(9) :: stage = (/"dED","dAF","dBD","dAD","dAR","dBF","dBH","dCH","dAH"/)
-   character (len = 70),dimension(9) :: stage_txt = (/&
+   character (len = 3), dimension(10) :: stage = (/"dED","dAF","dBD","dAD","dAR","dBF","dBH","dCH","dAH",'p2d'/)
+   character (len = 70),dimension(10) :: stage_txt = (/&
       " end of previous dynamics                           ",& !dED
       " from previous remapping or state passed to dynamics",& !dAF - state in beginning of nsplit loop
       " state after applying CAM forcing                   ",& !dBD - state after applyCAMforcing
@@ -543,7 +543,8 @@ subroutine dyn_init(dyn_in, dyn_out)
       " state passed to parameterizations                  ",& !dBF
       " state before hypervis                              ",& !dBH
       " state after hypervis but before adding heating term",& !dCH
-      " state after hypervis                               " & !dAH
+      " state after hypervis                               ",& !dAH
+      " phys2dyn mapping errors (requires ftype-1)         " & !p2d - for assessing phys2dyn mapping errors
       /)
    character (len = 2)  , dimension(8) :: vars = (/"WV","WL","WI","SE","KE","MR","MO","TT"/)
    character (len = 70), dimension(8)  :: vars_descriptor = (/&
